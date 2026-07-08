@@ -36,3 +36,14 @@ def delete_record(record_id):
     records = [r for r in records if r["id"] != record_id]
     _write_records(records)
     return records
+
+
+def update_record(record_id, updated_data):
+    """指定IDのレコードを更新する"""
+    records = load_records()
+    for i, r in enumerate(records):
+        if r["id"] == record_id:
+            records[i] = updated_data
+            break
+    _write_records(records)
+    return records

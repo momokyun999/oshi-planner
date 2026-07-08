@@ -1,5 +1,6 @@
 
 import collections
+import datetime
 import os
 import sys
 
@@ -9,7 +10,9 @@ import streamlit as st
 sys.path.append(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.storage import delete_record, load_records
+from utils.calculator import calculate_split
+from utils.data import hotel_costs, transport_data
+from utils.storage import delete_record, load_records, update_record
 from utils.styles import alert, card, inject_theme
 
 st.set_page_config(
@@ -26,6 +29,15 @@ st.caption("これまでの遠征記録を振り返ることができます")
 st.divider()
 
 records = load_records()
+
+if "editing_id" not in st.session_state:
+    st.session_state.editing_id = None
+if "mypage_edit_payments" not in st.session_state:
+    st.session_state.mypage_edit_payments = []
+if "mypage_editing_payment_idx" not in st.session_state:
+    st.session_state.mypage_editing_payment_idx = None
+if "mypage_edit_split_result" not in st.session_state:
+    st.session_state.mypage_edit_split_result = None
 
 if not records:
     alert(
@@ -148,6 +160,7 @@ sorted_records = sorted(
 )
 
 for record in sorted_records:
+    rid = record["id"]
     with card():
         st.markdown(
             f"**{record.get('live_date', '')} "
@@ -163,13 +176,263 @@ for record in sorted_records:
         )
         st.write(f"合計: {record.get('total_cost', 0):,}円")
 
-        b1, b2 = st.columns([1, 1])
-        if b1.button("詳細を見る", key=f"detail_{record['id']}"):
-            st.session_state.mypage_selected_id = record["id"]
+        b1, b2, b3 = st.columns([1, 1, 1])
+        if b1.button("詳細を見る", key=f"detail_{rid}"):
+            st.session_state.mypage_selected_id = rid
             st.rerun()
-        if b2.button("削除", key=f"delete_{record['id']}"):
-            delete_record(record["id"])
+        if b2.button("編集", key=f"edit_{rid}"):
+            st.session_state.editing_id = rid
+            st.session_state["mypage_edit_live_date"] = (
+                datetime.date.fromisoformat(record["live_date"])
+            )
+            st.session_state["mypage_edit_venue"] = record.get("venue", "")
+            st.session_state["mypage_edit_transport"] = record.get(
+                "transport", "新幹線")
+            st.session_state["mypage_edit_nights"] = record.get(
+                "nights", 0)
+            st.session_state["mypage_edit_num_people"] = record.get(
+                "num_people", 1)
+            st.session_state["mypage_edit_ticket_price"] = record.get(
+                "ticket_price", 0)
+            st.session_state["mypage_edit_goods_budget"] = record.get(
+                "goods_budget", 0)
+            st.session_state["mypage_edit_food_budget"] = record.get(
+                "food_budget", 0)
+            st.session_state["mypage_edit_memo"] = record.get("memo", "")
+            st.session_state["mypage_edit_members_input"] = ", ".join(
+                record.get("members", []))
+            st.session_state.mypage_edit_payments = [
+                dict(p) for p in record.get("payments", [])
+            ]
+            st.session_state.mypage_editing_payment_idx = None
+            st.session_state.mypage_edit_split_result = None
             st.rerun()
+        if b3.button("削除", key=f"delete_{rid}"):
+            delete_record(rid)
+            if st.session_state.editing_id == rid:
+                st.session_state.editing_id = None
+            st.rerun()
+
+        if st.session_state.editing_id == rid:
+            st.divider()
+            st.markdown("**遠征記録を編集**")
+
+            st.date_input("ライブ日程", key="mypage_edit_live_date")
+            st.text_input("会場名", key="mypage_edit_venue")
+
+            transport_options = list(
+                transport_data.get(
+                    (record["departure"], record["destination"]), {}
+                ).keys()
+            ) or ["新幹線", "高速バス", "飛行機"]
+            st.selectbox(
+                "交通手段", transport_options, key="mypage_edit_transport")
+
+            e1, e2 = st.columns(2)
+            e1.number_input(
+                "宿泊数", min_value=0, max_value=7,
+                key="mypage_edit_nights")
+            e2.number_input(
+                "人数", min_value=1, max_value=10,
+                key="mypage_edit_num_people")
+
+            e3, e4, e5 = st.columns(3)
+            e3.number_input(
+                "チケット代（円）", min_value=0, step=500,
+                key="mypage_edit_ticket_price")
+            e4.number_input(
+                "グッズ予算（円）", min_value=0, step=1000,
+                key="mypage_edit_goods_budget")
+            e5.number_input(
+                "食事・観光予算（円）", min_value=0, step=1000,
+                key="mypage_edit_food_budget")
+
+            st.text_area("メモ（自由記入）", key="mypage_edit_memo")
+
+            st.markdown("**メンバー・割り勘計算**")
+            st.text_input(
+                "メンバー名を入力（カンマ区切り）",
+                key="mypage_edit_members_input",
+            )
+            edit_members = [
+                m.strip()
+                for m in
+                st.session_state.mypage_edit_members_input.split(",")
+                if m.strip()
+            ]
+
+            if edit_members:
+                with st.form(
+                        f"mypage_payment_form_{rid}", clear_on_submit=True):
+                    pcol1, pcol2, pcol3, pcol4 = st.columns([2, 2, 2, 1])
+                    payer = pcol1.selectbox("支払者", edit_members)
+                    item = pcol2.text_input(
+                        "項目名", placeholder="例：交通費")
+                    amount = pcol3.number_input(
+                        "金額（円）", min_value=0, step=100)
+                    submitted = pcol4.form_submit_button("追加")
+                    if submitted and item and amount > 0:
+                        st.session_state.mypage_edit_payments.append({
+                            "payer": payer,
+                            "item": item,
+                            "amount": amount,
+                        })
+
+                if st.session_state.mypage_edit_payments:
+                    st.markdown("**登録済みの支払い**")
+                    for idx, p in enumerate(
+                            st.session_state.mypage_edit_payments):
+                        if (st.session_state.mypage_editing_payment_idx
+                                == idx):
+                            c1, c2, c3, c4, c5 = st.columns(
+                                [2, 2, 2, 1, 1])
+                            payer_index = (
+                                edit_members.index(p["payer"])
+                                if p["payer"] in edit_members else 0
+                            )
+                            new_payer = c1.selectbox(
+                                "支払者", edit_members,
+                                index=payer_index,
+                                key=f"mypage_edit_payer_{rid}_{idx}",
+                            )
+                            new_item = c2.text_input(
+                                "項目名", value=p["item"],
+                                key=f"mypage_edit_item_{rid}_{idx}")
+                            new_amount = c3.number_input(
+                                "金額（円）", min_value=0, step=100,
+                                value=p["amount"],
+                                key=f"mypage_edit_amount_{rid}_{idx}")
+                            if c4.button(
+                                    "更新",
+                                    key=f"mypage_update_payment_{rid}_{idx}"):
+                                st.session_state.mypage_edit_payments[idx] = {
+                                    "payer": new_payer,
+                                    "item": new_item,
+                                    "amount": new_amount,
+                                }
+                                st.session_state.mypage_editing_payment_idx = (
+                                    None
+                                )
+                                st.rerun()
+                            if c5.button(
+                                    "キャンセル",
+                                    key=f"mypage_cancel_payment_{rid}_{idx}"):
+                                st.session_state.mypage_editing_payment_idx = (
+                                    None
+                                )
+                                st.rerun()
+                        else:
+                            c1, c2, c3, c4, c5 = st.columns(
+                                [2, 2, 2, 1, 1])
+                            c1.write(p["payer"])
+                            c2.write(p["item"])
+                            c3.write(f"{p['amount']:,}円")
+                            if c4.button(
+                                    "編集",
+                                    key=f"mypage_edit_payment_{rid}_{idx}"):
+                                st.session_state.mypage_editing_payment_idx = (
+                                    idx
+                                )
+                                st.rerun()
+                            if c5.button(
+                                    "削除",
+                                    key=f"mypage_del_payment_{rid}_{idx}"):
+                                st.session_state.mypage_edit_payments.pop(
+                                    idx)
+                                if (st.session_state
+                                        .mypage_editing_payment_idx == idx):
+                                    st.session_state \
+                                        .mypage_editing_payment_idx = None
+                                st.rerun()
+
+            if st.button("再計算", key=f"mypage_recalc_{rid}"):
+                if edit_members and st.session_state.mypage_edit_payments:
+                    st.session_state.mypage_edit_split_result = (
+                        calculate_split(
+                            edit_members,
+                            st.session_state.mypage_edit_payments,
+                        )
+                    )
+                else:
+                    st.session_state.mypage_edit_split_result = None
+
+            if st.session_state.mypage_edit_split_result:
+                sr = st.session_state.mypage_edit_split_result
+                st.write(
+                    "1人あたりの負担額: "
+                    f"**{sr['per_person']:,.0f}円**"
+                )
+                if sr["settlement"]:
+                    for s in sr["settlement"]:
+                        st.write(
+                            f"{s['from']} → {s['to']} に "
+                            f"{s['amount']:,}円"
+                        )
+                else:
+                    st.write(
+                        "精算の必要はありません"
+                        "（全員の負担額が同じです）"
+                    )
+
+            s1, s2 = st.columns(2)
+            if s1.button("保存", key=f"mypage_save_{rid}", type="primary"):
+                new_transport = st.session_state.mypage_edit_transport
+                new_nights = st.session_state.mypage_edit_nights
+                new_num_people = st.session_state.mypage_edit_num_people
+                new_ticket_price = st.session_state.mypage_edit_ticket_price
+                new_goods_budget = st.session_state.mypage_edit_goods_budget
+                new_food_budget = st.session_state.mypage_edit_food_budget
+
+                fare = transport_data.get(
+                    (record["departure"], record["destination"]), {}
+                ).get(new_transport, {}).get("料金", 0)
+                hotel_rate = hotel_costs.get(
+                    record["destination"], {}
+                ).get(record.get("hotel_type"), 0)
+
+                transport_cost = fare * 2 * new_num_people
+                hotel_cost = hotel_rate * new_nights * new_num_people
+                total_cost = (
+                    transport_cost
+                    + hotel_cost
+                    + new_ticket_price * new_num_people
+                    + new_goods_budget
+                    + new_food_budget
+                )
+
+                split_result = None
+                if edit_members and st.session_state.mypage_edit_payments:
+                    split_result = calculate_split(
+                        edit_members, st.session_state.mypage_edit_payments)
+
+                updated_record = {
+                    **record,
+                    "live_date": st.session_state[
+                        "mypage_edit_live_date"].isoformat(),
+                    "venue": st.session_state["mypage_edit_venue"],
+                    "transport": new_transport,
+                    "transport_cost": transport_cost,
+                    "hotel_cost": hotel_cost,
+                    "nights": new_nights,
+                    "num_people": new_num_people,
+                    "ticket_price": new_ticket_price,
+                    "goods_budget": new_goods_budget,
+                    "food_budget": new_food_budget,
+                    "total_cost": total_cost,
+                    "members": edit_members,
+                    "payments": st.session_state.mypage_edit_payments,
+                    "settlement": (
+                        split_result["settlement"] if split_result else []
+                    ),
+                    "memo": st.session_state["mypage_edit_memo"],
+                }
+                update_record(rid, updated_record)
+                st.session_state.editing_id = None
+                st.rerun()
+
+            if s2.button("キャンセル", key=f"mypage_cancel_{rid}"):
+                st.session_state.editing_id = None
+                st.rerun()
 
 st.divider()
 
