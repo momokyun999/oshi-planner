@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile oshi_planner.py)",
+      "Skill(run)",
+      "Bash(python -c \"import streamlit; print\\(streamlit.__version__\\)\")",
+      "Bash(python -c \"import playwright\")",
+      "Bash(command -v chromium-cli)",
+      "Bash(command -v playwright)",
+      "Bash(pip show *)",
+      "Bash(nohup streamlit run oshi_planner.py --server.headless true --server.port 8501)",
+      "Bash(echo \"started pid $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8501)",
+      "Bash(python -m playwright install chromium)",
+      "Bash(python test_app.py)",
+      "Bash(python test_app2.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python inspect.py)",
+      "Bash(mv inspect.py inspect_dom.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python inspect_dom.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python test_app2.py)",
+      "Bash(taskkill //F //IM streamlit.exe)",
+      "Bash(pkill -f \"streamlit run\")",
+      "Bash(python -c \"import pandas; print\\('pandas', pandas.__version__\\)\")",
+      "Bash(python -c \"import matplotlib; print\\('matplotlib', matplotlib.__version__\\)\")",
+      "Bash(python -m py_compile oshi_planner.py utils/calculator.py utils/storage.py pages/mypage.py)",
+      "Bash(python -c ' *)",
+      "Bash(rm -f oshi_records.json streamlit.log)",
+      "Bash(PYTHONIOENCODING=utf-8 python test_warikan.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python test_full_flow.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python inspect_form.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python seed_records.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python test_mypage.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python test_mypage_bottom.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python test_delete.py)"
+    ]
+  }
+}
