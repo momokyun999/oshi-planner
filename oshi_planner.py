@@ -5,16 +5,14 @@ import uuid
 import plotly.graph_objects as go
 import streamlit as st
 
-from utils.calculator import calculate_split
-from utils.data import (
-    airport_codes,
-    bus_pref_codes,
-    cities,
-    hotel_costs,
-    jalan_city_codes,
-    transport_data,
-    venues,
+from utils.booking import (
+    get_highway_bus_url,
+    get_jalan_hotel_url,
+    get_rakuten_url,
+    get_skyscanner_url,
 )
+from utils.calculator import calculate_split
+from utils.data import cities, hotel_costs, transport_data, venues
 from utils.storage import save_record
 from utils.styles import alert, card, inject_theme, link_row, transport_card
 
@@ -27,7 +25,7 @@ def get_transport_options(departure, destination):
     交通手段と費用を返す。
     将来：各交通サービスのAPIに切り替える
     - 新幹線：JR東日本API
-    - 高速バス：じゃらんバスAPI
+    - 高速バス：高速バスネットAPI
     - 飛行機：各航空会社API
     """
     return transport_data.get((departure, destination), {})
@@ -53,47 +51,27 @@ def is_busy_season(live_date):
         return True
     return False
 
-def get_booking_links(departure, destination, hotel_type, live_date):
+def get_booking_links(departure, destination, hotel_type, live_date, num_people):
     """
     予約リンクを（ホテル用, 交通手段用）のタプルで返す。
-    リンク先は入力された日付を反映した検索結果ページ
+    リンク先は入力された日付・人数を反映した検索結果ページ
     （概算・参考用）。
     将来：実際の予約URL・アフィリエイトリンクに切り替える
     """
     checkin = live_date
     checkout = live_date + datetime.timedelta(days=1)
 
-    jalan_city = jalan_city_codes.get(destination, "")
     hotel_links = {
-        "じゃらん": (
-            f"https://www.jalan.net/ikisaki/{jalan_city}/"
-            f"?stayFrom={checkin.strftime('%Y%m%d')}"
-            f"&stayTo={checkout.strftime('%Y%m%d')}"
-        ),
-        "楽天トラベル": (
-            "https://travel.rakuten.co.jp/yado/search/"
-            f"?f_nen1={checkin.year}&f_tuki1={checkin.month:02d}"
-            f"&f_hi1={checkin.day:02d}"
-            f"&f_nen2={checkout.year}&f_tuki2={checkout.month:02d}"
-            f"&f_hi2={checkout.day:02d}"
-        ),
+        "じゃらん": get_jalan_hotel_url(),
+        "楽天トラベル（日付・人数反映）": get_rakuten_url(
+            destination, checkin, checkout, num_people),
     }
 
-    dpt_pref = bus_pref_codes.get(departure, "")
-    arv_pref = bus_pref_codes.get(destination, "")
-    dpt_airport = airport_codes.get(departure, "")
-    arv_airport = airport_codes.get(destination, "")
     transport_links = {
         "新幹線（JR）": "https://www.jreast.co.jp/tabi/shinkansen/",
-        "高速バス": (
-            "https://highway-bus.jalan.net/"
-            f"?dptPref={dpt_pref}&arvPref={arv_pref}"
-            f"&month={checkin.strftime('%Y%m')}&day={checkin.strftime('%d')}"
-        ),
-        "飛行機": (
-            "https://www.skyscanner.jp/transport/flights/"
-            f"{dpt_airport}/{arv_airport}/{checkin.strftime('%y%m%d')}/"
-        ),
+        "高速バス（高速バスネット）": get_highway_bus_url(),
+        "飛行機（スカイスキャナー・日付反映）": get_skyscanner_url(
+            departure, destination, checkin),
     }
     return hotel_links, transport_links
 
@@ -254,13 +232,15 @@ if st.session_state.get("show_results"):
         "（概算・参考用）です。"
     )
     hotel_links, transport_links = get_booking_links(
-        departure, destination, hotel_type, live_date)
+        departure, destination, hotel_type, live_date, num_people)
 
     st.markdown("**【ホテルを予約する】**")
     link_row(hotel_links)
+    st.caption("※クリックすると外部サイトに移動します")
 
     st.markdown("**【交通手段を予約する】**")
     link_row(transport_links)
+    st.caption("※クリックすると外部サイトに移動します")
 
     st.caption(
         "※ 交通費・宿泊費は概算です。"

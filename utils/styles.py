@@ -210,13 +210,26 @@ def alert(message, kind="accent"):
 
 
 def link_row(links):
-    """予約リンクをカスタムHTMLの横並びリンクとして表示する"""
+    """
+    予約リンクを横並びのHTMLの<a>タグとして表示する。
+    st.link_button はStreamlit Cloud上で正しく機能しないことがあるため、
+    st.markdown + unsafe_allow_html でリンクを直接出力する。
+    """
     html = "".join(
-        f'<a class="oshi-link" href="{url}" target="_blank" '
-        f'rel="noopener noreferrer">{name} →</a>'
+        f'<a href="{url}" target="_blank" '
+        f'rel="noopener noreferrer" '
+        f'style="display:inline-block; padding:8px 16px; '
+        f'background:{COLOR_LINK_BG}; color:{COLOR_TEXT}; '
+        f'border-radius:6px; text-decoration:none; '
+        f'font-size:14px; margin:4px 4px 4px 0; '
+        f'border:1px solid {COLOR_BORDER};">'
+        f'{name} →</a>'
         for name, url in links.items()
     )
-    st.markdown(f'<div class="oshi-link-row">{html}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="display:flex; flex-wrap:wrap;">{html}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def transport_card(name, transport_cost, duration, hotel_cost, total, is_best):
