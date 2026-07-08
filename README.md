@@ -1,19 +1,15 @@
 # 推し活遠征プランナー
 
-## 環境変数（楽天トラベルAPI）
+## 環境変数（じゃらんnet API）
 
-ホテルの実勢価格取得に楽天トラベルAPIを使用します。以下のキーが必要です。
+ホテルの実勢価格取得にじゃらんnet APIを使用します。以下のキーが必要です。
 
-- `RAKUTEN_APP_ID`
-- `RAKUTEN_AFFILIATE_ID`
-- `RAKUTEN_ACCESS_KEY`
+- `JALAN_API_KEY`
 
 ローカル開発では、プロジェクト直下に `.env` ファイルを作成して設定します（`.env` は `.gitignore` 済みでリポジトリにはコミットされません）。
 
 ```
-RAKUTEN_APP_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-RAKUTEN_AFFILIATE_ID=xxxxxxxx.xxxxxxxx.xxxxxxxx.xxxxxxxx
-RAKUTEN_ACCESS_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+JALAN_API_KEY=xxxxxxxxxxxxxxxx
 ```
 
 **注意：** 実際のキー値は `.env` ファイルにのみ記載し、READMEやコード、Gitにコミットするファイルには書かないでください。
@@ -28,9 +24,7 @@ Streamlit Cloud上では `.env` は読み込まれないため、管理画面か
 4. 以下の形式でキーと値を入力して保存する（値は自分の実際のキーに置き換える）：
 
 ```toml
-RAKUTEN_APP_ID = "自分のRAKUTEN_APP_ID"
-RAKUTEN_AFFILIATE_ID = "自分のRAKUTEN_AFFILIATE_ID"
-RAKUTEN_ACCESS_KEY = "自分のRAKUTEN_ACCESS_KEY"
+JALAN_API_KEY = "自分のJALAN_API_KEY"
 ```
 
 Secretsに保存した値はStreamlit Cloud側でのみ保持され、リポジトリには含まれません。

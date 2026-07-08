@@ -13,7 +13,7 @@ from utils.booking import (
 )
 from utils.calculator import calculate_split
 from utils.data import cities, hotel_costs, transport_data, venues
-from utils.rakuten_api import get_hotel_prices
+from utils.jalan_api import get_hotel_prices
 from utils.storage import save_record
 from utils.styles import alert, card, inject_theme, link_row, transport_card
 
@@ -218,7 +218,7 @@ if st.session_state.get("show_results"):
         st.plotly_chart(fig, use_container_width=True)
 
     # ============================================
-    # 宿泊費（楽天トラベル実勢価格）
+    # 宿泊費（じゃらん実勢価格）
     # ============================================
     st.subheader("宿泊費の詳細")
     checkout_date = live_date + datetime.timedelta(days=max(nights, 1))
@@ -241,7 +241,7 @@ if st.session_state.get("show_results"):
     with card():
         if hotel_api_result and nights > 0:
             st.write(
-                "楽天トラベル最安値: "
+                "じゃらん最安値: "
                 f"**{hotel_api_result['min_price']:,}円/泊**"
             )
             st.write(
