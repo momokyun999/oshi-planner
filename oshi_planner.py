@@ -2,10 +2,12 @@
 import datetime
 import uuid
 
+import plotly.graph_objects as go
 import streamlit as st
 
 from utils.calculator import calculate_split
 from utils.storage import save_record
+from utils.styles import alert, card, inject_theme, link_row, transport_card
 
 # ============================================
 # データ定義
@@ -138,58 +140,61 @@ st.set_page_config(
     layout="wide"
 )
 
+inject_theme()
+
 st.title("🎤 推し活遠征プランナー")
-st.caption(
-    "ライブ遠征にかかる費用をまとめて計算できます"
-)
+st.caption("遠征にかかるすべての費用を、ここで計算。")
 
 st.divider()
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("📍 遠征情報")
-    departure = st.selectbox("出発地", cities)
-    destination = st.selectbox(
-        "ライブ会場（都市）",
-        [c for c in cities if c != departure]
-    )
-    venue = st.selectbox("会場", venues[destination])
-    live_date = st.date_input(
-        "ライブ日程", value=datetime.date.today())
-    if is_busy_season(live_date):
-        st.warning(
-            "⚠️ 繁忙期のため料金が高くなる可能性があります"
+    with card():
+        st.subheader("📍 遠征情報")
+        departure = st.selectbox("出発地", cities)
+        destination = st.selectbox(
+            "ライブ会場（都市）",
+            [c for c in cities if c != departure]
         )
-    nights = st.number_input(
-        "宿泊数", min_value=0, max_value=7, value=1)
-    num_people = st.number_input(
-        "人数", min_value=1, max_value=10, value=1)
+        venue = st.selectbox("会場", venues[destination])
+        live_date = st.date_input(
+            "ライブ日程", value=datetime.date.today())
+        if is_busy_season(live_date):
+            alert(
+                "繁忙期のため料金が高くなる可能性があります",
+                kind="warning",
+            )
+        nights = st.number_input(
+            "宿泊数", min_value=0, max_value=7, value=1)
+        num_people = st.number_input(
+            "人数", min_value=1, max_value=10, value=1)
 
 with col2:
-    st.subheader("💰 予算設定")
-    ticket_price = st.number_input(
-        "チケット代（円）",
-        min_value=0, value=8000, step=500)
-    goods_budget = st.number_input(
-        "グッズ予算（円）",
-        min_value=0, value=10000, step=1000)
-    food_budget = st.number_input(
-        "食事・観光予算（円）",
-        min_value=0, value=5000, step=1000)
-    hotel_type = st.selectbox(
-        "ホテルグレード",
-        ["ビジネス", "ビジネス上", "シティ"]
-    )
+    with card():
+        st.subheader("💴 予算設定")
+        ticket_price = st.number_input(
+            "チケット代（円）",
+            min_value=0, value=8000, step=500)
+        goods_budget = st.number_input(
+            "グッズ予算（円）",
+            min_value=0, value=10000, step=1000)
+        food_budget = st.number_input(
+            "食事・観光予算（円）",
+            min_value=0, value=5000, step=1000)
+        hotel_type = st.selectbox(
+            "ホテルグレード",
+            ["ビジネス", "ビジネス上", "シティ"]
+        )
 
-if st.button("💴 費用を計算する", type="primary"):
+if st.button("費用を計算する", type="primary"):
     st.session_state.show_results = True
 
 # 割り勘フォームの操作でも計算結果を表示し続けるため、
 # ボタンの戻り値ではなくセッション状態で表示有無を管理する
 if st.session_state.get("show_results"):
     st.divider()
-    st.subheader("📊 計算結果")
+    st.subheader("計算結果")
 
     route = get_transport_options(departure, destination)
     hotel_cost = get_hotel_cost(
@@ -223,25 +228,25 @@ if st.session_state.get("show_results"):
     results.sort(key=lambda x: x["合計"])
     best = results[0]
 
-    st.success(
-        f"✅ 最安：{best['交通手段']}を使うと合計 "
-        f"**{best['合計']:,}円**（{num_people}人分）"
+    alert(
+        f"最安：{best['交通手段']}を使うと合計 "
+        f"<strong>{best['合計']:,}円</strong>（{num_people}人分）",
+        kind="accent",
     )
 
-    st.subheader("🚄 交通手段の比較")
+    st.subheader("交通手段の比較")
     for r in results:
-        cols = st.columns([2, 2, 2, 2, 2])
-        cols[0].metric("交通手段", r["交通手段"])
-        cols[1].metric(
-            "交通費（往復）",
-            f"{r['交通費（往復）']:,}円"
+        is_best = r["交通手段"] == best["交通手段"]
+        transport_card(
+            r["交通手段"],
+            r["交通費（往復）"],
+            r["所要時間"],
+            r["宿泊費"],
+            r["合計"],
+            is_best,
         )
-        cols[2].metric("所要時間", r["所要時間"])
-        cols[3].metric("宿泊費", f"{r['宿泊費']:,}円")
-        cols[4].metric("合計", f"{r['合計']:,}円")
-        st.divider()
 
-    st.subheader("📋 費用の内訳（最安プラン）")
+    st.subheader("費用の内訳（最安プラン）")
     items = {
         "交通費（往復）": best["交通費（往復）"],
         "宿泊費": best["宿泊費"],
@@ -249,22 +254,34 @@ if st.session_state.get("show_results"):
         "グッズ予算": best["グッズ"],
         "食事・観光": best["食事・観光"],
     }
-    for item, cost in items.items():
-        c1, c2 = st.columns([3, 1])
-        c1.write(f"・{item}")
-        c2.write(f"**{cost:,}円**")
+    with card():
+        fig = go.Figure(go.Bar(
+            x=list(items.values()),
+            y=list(items.keys()),
+            orientation='h',
+            marker_color='#6366F1',
+        ))
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font_family='Inter',
+            height=200,
+            margin=dict(l=0, r=0, t=0, b=0),
+        )
+        fig.update_yaxes(autorange="reversed")
+        st.plotly_chart(fig, use_container_width=True)
 
-    st.divider()
-    st.info(
-        f"💡 {num_people}人で行く場合、1人あたり "
-        f"**{best['合計']//num_people:,}円**かかります"
+    alert(
+        f"{num_people}人で行く場合、1人あたり "
+        f"<strong>{best['合計']//num_people:,}円</strong>かかります",
+        kind="accent",
     )
 
     # ============================================
     # 予約リンク
     # 将来：実際の料金・空き状況を表示する
     # ============================================
-    st.subheader("🔗 予約はこちらから")
+    st.subheader("予約はこちらから")
     st.caption(
         "※ リンク先は入力した日付を反映した検索結果ページ"
         "（概算・参考用）です。"
@@ -273,14 +290,10 @@ if st.session_state.get("show_results"):
         departure, destination, hotel_type, live_date)
 
     st.markdown("**【ホテルを予約する】**")
-    cols = st.columns(len(hotel_links))
-    for i, (name, url) in enumerate(hotel_links.items()):
-        cols[i].link_button(name, url)
+    link_row(hotel_links)
 
     st.markdown("**【交通手段を予約する】**")
-    cols = st.columns(len(transport_links))
-    for i, (name, url) in enumerate(transport_links.items()):
-        cols[i].link_button(name, url)
+    link_row(transport_links)
 
     st.caption(
         "※ 交通費・宿泊費は概算です。"
@@ -291,7 +304,7 @@ if st.session_state.get("show_results"):
     # 割り勘計算
     # ============================================
     st.divider()
-    st.subheader("👥 遠征メンバー・割り勘計算")
+    st.subheader("遠征メンバー・割り勘計算")
 
     members_input = st.text_input(
         "メンバー名を入力（カンマ区切り）",
@@ -304,80 +317,82 @@ if st.session_state.get("show_results"):
         st.session_state.payments = []
 
     if not members:
-        st.info(
+        st.caption(
             "メンバー名を入力すると、支払い記録を"
             "登録できるようになります。"
         )
     else:
-        st.markdown("**各メンバーの支払い記録**")
-        with st.form("payment_form", clear_on_submit=True):
-            pcol1, pcol2, pcol3, pcol4 = st.columns([2, 2, 2, 1])
-            payer = pcol1.selectbox("支払者", members)
-            item = pcol2.text_input(
-                "項目名", placeholder="例：交通費")
-            amount = pcol3.number_input(
-                "金額（円）", min_value=0, step=100)
-            submitted = pcol4.form_submit_button("追加")
-            if submitted and item and amount > 0:
-                st.session_state.payments.append({
-                    "payer": payer,
-                    "item": item,
-                    "amount": amount,
-                })
+        with card():
+            st.markdown("**各メンバーの支払い記録**")
+            with st.form("payment_form", clear_on_submit=True):
+                pcol1, pcol2, pcol3, pcol4 = st.columns([2, 2, 2, 1])
+                payer = pcol1.selectbox("支払者", members)
+                item = pcol2.text_input(
+                    "項目名", placeholder="例：交通費")
+                amount = pcol3.number_input(
+                    "金額（円）", min_value=0, step=100)
+                submitted = pcol4.form_submit_button("追加")
+                if submitted and item and amount > 0:
+                    st.session_state.payments.append({
+                        "payer": payer,
+                        "item": item,
+                        "amount": amount,
+                    })
 
-        if st.session_state.payments:
-            st.markdown("**登録済みの支払い**")
-            for idx, p in enumerate(st.session_state.payments):
-                c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
-                c1.write(p["payer"])
-                c2.write(p["item"])
-                c3.write(f"{p['amount']:,}円")
-                if c4.button("削除", key=f"del_payment_{idx}"):
-                    st.session_state.payments.pop(idx)
-                    st.rerun()
+            if st.session_state.payments:
+                st.markdown("**登録済みの支払い**")
+                for idx, p in enumerate(st.session_state.payments):
+                    c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
+                    c1.write(p["payer"])
+                    c2.write(p["item"])
+                    c3.write(f"{p['amount']:,}円")
+                    if c4.button("削除", key=f"del_payment_{idx}"):
+                        st.session_state.payments.pop(idx)
+                        st.rerun()
 
     split_result = None
     if members and st.session_state.payments:
         split_result = calculate_split(
             members, st.session_state.payments)
 
-        st.markdown("### 【割り勘計算結果】")
-        st.write(
-            "1人あたりの負担額: "
-            f"**{split_result['per_person']:,.0f}円**"
-        )
-
-        st.markdown("**支払い一覧：**")
-        for p in st.session_state.payments:
+        with card():
+            st.markdown("### 【割り勘計算結果】")
             st.write(
-                f"　{p['payer']}: {p['item']} {p['amount']:,}円"
+                "1人あたりの負担額: "
+                f"**{split_result['per_person']:,.0f}円**"
             )
 
-        st.markdown("**精算方法：**")
-        if split_result["settlement"]:
-            for s in split_result["settlement"]:
+            st.markdown("**支払い一覧：**")
+            for p in st.session_state.payments:
                 st.write(
-                    f"✅ {s['from']} → {s['to']} に "
-                    f"{s['amount']:,}円"
+                    f"　{p['payer']}: {p['item']} {p['amount']:,}円"
                 )
-        else:
-            st.write(
-                "精算の必要はありません"
-                "（全員の負担額が同じです）"
-            )
+
+            st.markdown("**精算方法：**")
+            if split_result["settlement"]:
+                for s in split_result["settlement"]:
+                    st.write(
+                        f"{s['from']} → {s['to']} に "
+                        f"{s['amount']:,}円"
+                    )
+            else:
+                st.write(
+                    "精算の必要はありません"
+                    "（全員の負担額が同じです）"
+                )
 
     # ============================================
     # 遠征記録の保存
     # ============================================
     st.divider()
-    st.subheader("💾 この遠征を記録する")
+    st.subheader("この遠征を記録する")
     memo = st.text_area(
         "メモ（自由記入）",
         placeholder="例：アリーナAブロックで神席だった！",
         key="record_memo",
     )
 
-    if st.button("📝 記録する"):
+    if st.button("記録する"):
         record = {
             "id": str(uuid.uuid4()),
             "created_at": datetime.datetime.now().isoformat(
@@ -404,7 +419,8 @@ if st.session_state.get("show_results"):
             "memo": memo,
         }
         save_record(record)
-        st.success(
-            "✅ 記録を保存しました！"
-            "サイドバーの「mypage」ページから確認できます。"
+        alert(
+            "記録を保存しました！"
+            "サイドバーの「mypage」ページから確認できます。",
+            kind="success",
         )

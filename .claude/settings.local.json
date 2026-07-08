@@ -31,7 +31,30 @@
       "Bash(PYTHONIOENCODING=utf-8 python seed_records.py)",
       "Bash(PYTHONIOENCODING=utf-8 python test_mypage.py)",
       "Bash(PYTHONIOENCODING=utf-8 python test_mypage_bottom.py)",
-      "Bash(PYTHONIOENCODING=utf-8 python test_delete.py)"
+      "Bash(PYTHONIOENCODING=utf-8 python test_delete.py)",
+      "Bash(python -c \"import plotly; print\\(plotly.__version__\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8502)",
+      "Bash(PYTHONIOENCODING=utf-8 python probe_dom.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python probe_dom2.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python probe_dom3.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python probe_shot.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python probe_dom4.py)",
+      "Bash(nohup streamlit run dom_probe2.py --server.headless true --server.port 8502)",
+      "Bash(python -m py_compile oshi_planner.py pages/mypage.py utils/styles.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python test_design.py)",
+      "Bash(rm -rf utils/__pycache__ pages/__pycache__ __pycache__)",
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 python test_design2.py)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('oshi_planner.py', encoding='utf-8'\\).read\\(\\)\\); ast.parse\\(open\\('pages/mypage.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK syntax'\\)\")",
+      "Bash(python -c \"import streamlit, plotly; print\\('deps ok'\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8501)",
+      "Bash(python -c \"import playwright; print\\('module ok'\\)\")",
+      "Bash(python -m playwright --version)",
+      "Bash(python *)",
+      "Bash(powershell -Command \"Get-Process -Name streamlit -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(powershell -Command 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '\\\\''*streamlit run oshi_planner.py*'\\\\'' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8501 --max-time 3)",
+      "Bash(git add *)"
     ]
   }
 }
