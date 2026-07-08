@@ -308,7 +308,7 @@ if st.session_state.get("show_results"):
 
     members_input = st.text_input(
         "メンバー名を入力（カンマ区切り）",
-        placeholder="例：ゆうたろう, さくら, はな",
+        placeholder="例：あおい, さくら, はな",
         key="members_input",
     )
     members = [m.strip() for m in members_input.split(",") if m.strip()]
@@ -339,16 +339,53 @@ if st.session_state.get("show_results"):
                         "amount": amount,
                     })
 
+            if "editing_payment_idx" not in st.session_state:
+                st.session_state.editing_payment_idx = None
+
             if st.session_state.payments:
                 st.markdown("**登録済みの支払い**")
                 for idx, p in enumerate(st.session_state.payments):
-                    c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
-                    c1.write(p["payer"])
-                    c2.write(p["item"])
-                    c3.write(f"{p['amount']:,}円")
-                    if c4.button("削除", key=f"del_payment_{idx}"):
-                        st.session_state.payments.pop(idx)
-                        st.rerun()
+                    if st.session_state.editing_payment_idx == idx:
+                        c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 1, 1])
+                        payer_index = (
+                            members.index(p["payer"])
+                            if p["payer"] in members else 0
+                        )
+                        new_payer = c1.selectbox(
+                            "支払者", members,
+                            index=payer_index,
+                            key=f"edit_payer_{idx}",
+                        )
+                        new_item = c2.text_input(
+                            "項目名", value=p["item"],
+                            key=f"edit_item_{idx}")
+                        new_amount = c3.number_input(
+                            "金額（円）", min_value=0, step=100,
+                            value=p["amount"], key=f"edit_amount_{idx}")
+                        if c4.button("更新", key=f"update_payment_{idx}"):
+                            st.session_state.payments[idx] = {
+                                "payer": new_payer,
+                                "item": new_item,
+                                "amount": new_amount,
+                            }
+                            st.session_state.editing_payment_idx = None
+                            st.rerun()
+                        if c5.button("キャンセル", key=f"cancel_edit_{idx}"):
+                            st.session_state.editing_payment_idx = None
+                            st.rerun()
+                    else:
+                        c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 1, 1])
+                        c1.write(p["payer"])
+                        c2.write(p["item"])
+                        c3.write(f"{p['amount']:,}円")
+                        if c4.button("編集", key=f"edit_payment_{idx}"):
+                            st.session_state.editing_payment_idx = idx
+                            st.rerun()
+                        if c5.button("削除", key=f"del_payment_{idx}"):
+                            st.session_state.payments.pop(idx)
+                            if st.session_state.editing_payment_idx == idx:
+                                st.session_state.editing_payment_idx = None
+                            st.rerun()
 
     split_result = None
     if members and st.session_state.payments:
