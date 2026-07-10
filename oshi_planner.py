@@ -12,11 +12,20 @@ from utils.booking import (
     get_skyscanner_url,
 )
 from utils.calculator import calculate_split
-from utils.data import cities, hotel_costs, transport_data, venues
+from utils.data import (
+    cities,
+    hotel_costs,
+    hub_stations,
+    transport_data,
+    venue_stations,
+    venues,
+)
 from utils.jalan_api import get_hotel_prices
+from utils.local_info import get_rain_radar_url, get_transit_url
 from utils.sidebar import render_sidebar
 from utils.storage import save_record
 from utils.styles import alert, card, inject_theme, link_row, transport_card
+from utils.weather_api import get_weather_forecast
 
 DEFAULT_HOTEL_GRADE = "ビジネス"
 
@@ -304,6 +313,91 @@ if st.session_state.get("show_results"):
         f"<strong>{fmt_amount(best['合計'] // num_people)}</strong>かかります",
         kind="accent",
     )
+
+    # ============================================
+    # 現地の天気
+    # ============================================
+    st.subheader("🌤️ 現地の天気")
+
+    weather = get_weather_forecast(
+        destination, live_date.strftime("%Y-%m-%d")
+    )
+
+    if weather is None:
+        st.caption("天気情報を取得できませんでした。")
+    elif not weather.get("available"):
+        st.info(
+            "この日程はまだ天気予報の範囲外です"
+            "（5日先まで対応）。遠征が近づいたら"
+            "再度ご確認ください。"
+        )
+    else:
+        with card():
+            wcol1, wcol2, wcol3, wcol4 = st.columns(4)
+            wcol1.metric("天気", weather["weather"])
+            wcol2.metric(
+                "気温",
+                f"{weather['temp']}℃",
+                f"最高{weather['temp_max']}/最低{weather['temp_min']}"
+            )
+            wcol3.metric("降水確率", f"{weather['pop']}%")
+            wcol4.metric("湿度", f"{weather['humidity']}%")
+
+            advice = []
+            if weather["pop"] >= 50:
+                advice.append("傘を持っていきましょう")
+            if weather["temp_max"] >= 30:
+                advice.append("暑さ対策（水分・日傘）を")
+            if weather["temp_min"] <= 5:
+                advice.append("防寒対策をしっかりと")
+            if weather["wind"] >= 8:
+                advice.append("風が強いので注意")
+            if advice:
+                st.caption("💡 " + " / ".join(advice))
+
+    radar_url = get_rain_radar_url(destination)
+    st.markdown(
+        f'<a href="{radar_url}" target="_blank" '
+        f'rel="noopener noreferrer" '
+        f'style="display:inline-block; padding:8px 16px; '
+        f'background:#F3F4F6; color:#1A1A1A; '
+        f'border-radius:6px; text-decoration:none; '
+        f'font-size:14px; border:1px solid #E5E7EB;">'
+        f'🌧️ {destination}の雨雲レーダーを見る →</a>',
+        unsafe_allow_html=True,
+    )
+
+    # ============================================
+    # 現地の交通（時刻表リンク）
+    # ============================================
+    st.subheader("🚃 現地の交通")
+
+    nearest_station = venue_stations.get(venue, "")
+
+    if nearest_station:
+        st.write(f"**{venue}** の最寄り駅：{nearest_station}")
+
+        hub_station = hub_stations.get(destination, "")
+
+        if hub_station and hub_station != nearest_station:
+            transit_url = get_transit_url(hub_station, nearest_station)
+            st.markdown(
+                f'<a href="{transit_url}" target="_blank" '
+                f'rel="noopener noreferrer" '
+                f'style="display:inline-block; padding:8px 16px; '
+                f'background:#F3F4F6; color:#1A1A1A; '
+                f'border-radius:6px; text-decoration:none; '
+                f'font-size:14px; border:1px solid #E5E7EB; '
+                f'margin:4px 0;">'
+                f'🚃 {hub_station}→{nearest_station} の経路を調べる →</a>',
+                unsafe_allow_html=True,
+            )
+
+        st.caption(
+            "※出発駅は乗換案内のページで自由に変更できます"
+        )
+    else:
+        st.caption("この会場の最寄り駅情報は準備中です。")
 
     # ============================================
     # 予約リンク
