@@ -11,8 +11,8 @@ from utils.data import yahoo_weather_codes
 
 def get_rain_radar_url(city):
     """Yahoo!天気の雨雲レーダーページのURLを返す"""
-    code = yahoo_weather_codes.get(city, "")
-    return f"https://weather.yahoo.co.jp/weather/jp/{code}/"
+    path = yahoo_weather_codes.get(city, "")
+    return f"https://weather.yahoo.co.jp/weather/jp/{path}.html"
 
 
 def get_transit_url(from_station, to_station):
