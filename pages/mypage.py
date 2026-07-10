@@ -127,6 +127,96 @@ if selected_id:
     st.stop()
 
 # ============================================
+# 進行中の遠征（当日の割り勘記入）
+# ============================================
+today = datetime.date.today()
+
+
+def _is_ongoing(r):
+    try:
+        start = datetime.date.fromisoformat(r["live_date"])
+    except (KeyError, ValueError):
+        return False
+    end = start + datetime.timedelta(days=r.get("nights", 0))
+    return start <= today <= end
+
+
+ongoing_records = [r for r in records if _is_ongoing(r)]
+
+if ongoing_records:
+    st.subheader("🔴 進行中の遠征")
+    st.caption("当日の支払いをその場で記録できます")
+
+    for record in ongoing_records:
+        rid = record["id"]
+        members = record.get("members", [])
+        with card():
+            st.markdown(
+                f"**{record.get('live_date', '')} "
+                f"{record.get('venue', '')}**"
+            )
+
+            if not members:
+                st.caption(
+                    "メンバーが未登録です。"
+                    "一覧の「編集」からメンバーを追加してください。"
+                )
+                continue
+
+            with st.form(
+                    f"ongoing_payment_form_{rid}", clear_on_submit=True):
+                pc1, pc2, pc3, pc4 = st.columns([2, 2, 2, 1])
+                payer = pc1.selectbox("支払者", members)
+                item = pc2.text_input("項目名", placeholder="例：グッズ")
+                amount = pc3.number_input(
+                    "金額（円）", min_value=0, step=100)
+                submitted = pc4.form_submit_button("追加")
+                if submitted and item and amount > 0:
+                    payments = record.get("payments", []) + [{
+                        "payer": payer,
+                        "item": item,
+                        "amount": amount,
+                    }]
+                    settlement = calculate_split(
+                        members, payments)["settlement"]
+                    update_record(rid, {
+                        **record,
+                        "payments": payments,
+                        "settlement": settlement,
+                    })
+                    st.rerun()
+
+            payments = record.get("payments", [])
+            if payments:
+                st.markdown("**本日までの支払い**")
+                for idx, p in enumerate(payments):
+                    pcol1, pcol2, pcol3, pcol4 = st.columns([2, 2, 2, 1])
+                    pcol1.write(p["payer"])
+                    pcol2.write(p["item"])
+                    pcol3.write(f"{p['amount']:,}円")
+                    if pcol4.button(
+                            "削除", key=f"ongoing_del_{rid}_{idx}"):
+                        new_payments = (
+                            payments[:idx] + payments[idx + 1:]
+                        )
+                        settlement = calculate_split(
+                            members, new_payments)["settlement"]
+                        update_record(rid, {
+                            **record,
+                            "payments": new_payments,
+                            "settlement": settlement,
+                        })
+                        st.rerun()
+
+                split_result = calculate_split(members, payments)
+                st.write(
+                    "1人あたりの負担額: "
+                    f"**{split_result['per_person']:,.0f}円**"
+                )
+
+    st.divider()
+
+# ============================================
 # サマリーカード
 # ============================================
 total_trips = len(records)
