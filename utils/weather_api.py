@@ -2,11 +2,14 @@
 OpenWeatherMap APIで遠征先の天気予報を取得する。
 """
 
+import logging
 import os
 from datetime import datetime
 
 import requests
 import streamlit as st
+
+logger = logging.getLogger(__name__)
 
 # Streamlit CloudではSecretsから、
 # ローカルでは.envから読み込む
@@ -65,10 +68,12 @@ def get_weather_forecast(city, target_date_str):
     エラー時はNoneを返す
     """
     if not API_KEY:
+        logger.warning("weather_api: OPENWEATHER_API_KEY is not set")
         return None
 
     coords = CITY_COORDS.get(city)
     if not coords:
+        logger.warning("weather_api: unknown city %r", city)
         return None
 
     lat, lon = coords
@@ -86,6 +91,10 @@ def get_weather_forecast(city, target_date_str):
         data = res.json()
 
         if data.get("cod") != "200":
+            logger.warning(
+                "weather_api: API error cod=%r message=%r",
+                data.get("cod"), data.get("message"),
+            )
             return None
 
         # target_dateに最も近い予報を探す
@@ -122,4 +131,5 @@ def get_weather_forecast(city, target_date_str):
         }
 
     except Exception:
+        logger.exception("weather_api: request failed")
         return None
