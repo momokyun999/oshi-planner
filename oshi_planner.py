@@ -14,8 +14,11 @@ from utils.booking import (
 from utils.calculator import calculate_split
 from utils.data import cities, hotel_costs, transport_data, venues
 from utils.jalan_api import get_hotel_prices
+from utils.sidebar import render_sidebar
 from utils.storage import save_record
 from utils.styles import alert, card, inject_theme, link_row, transport_card
+
+DEFAULT_HOTEL_GRADE = "ビジネス"
 
 # ============================================
 # データ取得層（ここだけ差し替えれば拡張可能）
@@ -31,12 +34,13 @@ def get_transport_options(departure, destination):
     """
     return transport_data.get((departure, destination), {})
 
-def get_hotel_cost(city, hotel_type, nights):
+def get_hotel_cost(city, nights):
     """
-    宿泊費を返す。
+    宿泊費を返す。目安料金として各都市の最も安いグレード
+    （hotel_costs[city]["ビジネス"]）を使って計算する。
     将来：じゃらんAPI・楽天トラベルAPIに切り替える
     """
-    return hotel_costs[city][hotel_type] * nights
+    return hotel_costs[city][DEFAULT_HOTEL_GRADE] * nights
 
 def is_busy_season(live_date):
     """
@@ -52,7 +56,7 @@ def is_busy_season(live_date):
         return True
     return False
 
-def get_booking_links(departure, destination, hotel_type, live_date, num_people):
+def get_booking_links(departure, destination, live_date, num_people):
     """
     予約リンクを（ホテル用, 交通手段用）のタプルで返す。
     リンク先は入力された日付・人数を反映した検索結果ページ
@@ -87,6 +91,15 @@ st.set_page_config(
 )
 
 inject_theme()
+render_sidebar()
+
+
+def fmt_amount(amount):
+    """表示設定の通貨表示ON/OFFに応じて金額を整形する"""
+    if st.session_state.get("show_currency", True):
+        return f"{amount:,}円"
+    return f"{amount:,}"
+
 
 st.title("🎤 推し活遠征プランナー")
 st.caption("遠征にかかるすべての費用を、ここで計算。")
@@ -98,39 +111,51 @@ col1, col2 = st.columns(2)
 with col1:
     with card():
         st.subheader("📍 遠征情報")
-        departure = st.selectbox("出発地", cities)
+        departure = st.selectbox(
+            "出発地", cities, help="出発する都市を選んでください")
         destination = st.selectbox(
             "ライブ会場（都市）",
-            [c for c in cities if c != departure]
+            [c for c in cities if c != departure],
+            help="ライブ・イベントが開催される都市を選んでください",
         )
-        venue = st.selectbox("会場", venues[destination])
+        venue = st.selectbox(
+            "会場", venues[destination],
+            help="具体的な会場名を選んでください")
         live_date = st.date_input(
-            "ライブ日程", value=datetime.date.today())
-        if is_busy_season(live_date):
+            "ライブ日程", value=datetime.date.today(),
+            help="ライブ・イベント当日の日付を入力してください")
+        if is_busy_season(live_date) and st.session_state.get(
+                "show_busy_warning", True):
             alert(
                 "繁忙期のため料金が高くなる可能性があります",
                 kind="warning",
             )
         nights = st.number_input(
-            "宿泊数", min_value=0, max_value=7, value=1)
+            "宿泊数", min_value=0, max_value=7, value=1,
+            help="現地に宿泊する日数を入力してください")
         num_people = st.number_input(
-            "人数", min_value=1, max_value=10, value=1)
+            "人数", min_value=1, max_value=10, value=1,
+            help="一緒に遠征する人数（自分を含む）を入力してください")
 
 with col2:
     with card():
         st.subheader("💴 予算設定")
         ticket_price = st.number_input(
             "チケット代（円）",
-            min_value=0, value=8000, step=500)
+            min_value=0, value=8000, step=500,
+            help="1人分のチケット代を入力してください")
         goods_budget = st.number_input(
             "グッズ予算（円）",
-            min_value=0, value=10000, step=1000)
+            min_value=0, value=10000, step=1000,
+            help="グッズ購入に使う予定の金額を入力してください")
         food_budget = st.number_input(
             "食事・観光予算（円）",
-            min_value=0, value=5000, step=1000)
-        hotel_type = st.selectbox(
-            "ホテルグレード",
-            ["ビジネス", "ビジネス上", "シティ"]
+            min_value=0, value=5000, step=1000,
+            help="現地での食事・観光に使う予定の金額を入力してください")
+        budget_limit = st.number_input(
+            "予算上限（円）※任意",
+            min_value=0, value=0, step=5000,
+            help="予算の上限を入力すると、計算結果でオーバーの有無を判定します",
         )
 
 if st.button("費用を計算する", type="primary"):
@@ -143,8 +168,7 @@ if st.session_state.get("show_results"):
     st.subheader("計算結果")
 
     route = get_transport_options(departure, destination)
-    hotel_cost = get_hotel_cost(
-        destination, hotel_type, nights)
+    hotel_cost = get_hotel_cost(destination, nights)
 
     results = []
     for transport, data in route.items():
@@ -164,6 +188,7 @@ if st.session_state.get("show_results"):
                 f"{data['時間']//60}時間"
                 f"{data['時間']%60}分"
             ),
+            "所要時間_分": data["時間"],
             "宿泊費": hotel_total,
             "チケット代": ticket_price * num_people,
             "グッズ": goods_budget,
@@ -176,20 +201,37 @@ if st.session_state.get("show_results"):
 
     alert(
         f"最安：{best['交通手段']}を使うと合計 "
-        f"<strong>{best['合計']:,}円</strong>（{num_people}人分）",
+        f"<strong>{fmt_amount(best['合計'])}</strong>（{num_people}人分）",
         kind="accent",
     )
 
+    if budget_limit > 0:
+        if best["合計"] > budget_limit:
+            over = best["合計"] - budget_limit
+            st.error(f"⚠️ 予算を{fmt_amount(over)}オーバーしています")
+        else:
+            remain = budget_limit - best["合計"]
+            st.success(f"✅ 予算内です（残り{fmt_amount(remain)}）")
+
     st.subheader("交通手段の比較")
+    cheapest_transport = min(results, key=lambda x: x["合計"])["交通手段"]
+    fastest_transport = min(
+        results, key=lambda x: x["所要時間_分"])["交通手段"]
     for r in results:
-        is_best = r["交通手段"] == best["交通手段"]
+        if r["交通手段"] == cheapest_transport:
+            badge_text = "💰 最安"
+        elif r["交通手段"] == fastest_transport:
+            badge_text = "⚡ 最速"
+        else:
+            badge_text = "⚖️ バランス"
         transport_card(
             r["交通手段"],
             r["交通費（往復）"],
             r["所要時間"],
             r["宿泊費"],
             r["合計"],
-            is_best,
+            badge_text=badge_text,
+            highlight=(r["交通手段"] == cheapest_transport),
         )
 
     st.subheader("費用の内訳（最安プラン）")
@@ -235,7 +277,7 @@ if st.session_state.get("show_results"):
         )
     else:
         actual_hotel_cost = get_hotel_cost(
-            destination, hotel_type, nights
+            destination, nights
         ) * num_people
 
     with card():
@@ -259,7 +301,7 @@ if st.session_state.get("show_results"):
 
     alert(
         f"{num_people}人で行く場合、1人あたり "
-        f"<strong>{best['合計']//num_people:,}円</strong>かかります",
+        f"<strong>{fmt_amount(best['合計'] // num_people)}</strong>かかります",
         kind="accent",
     )
 
@@ -273,7 +315,7 @@ if st.session_state.get("show_results"):
         "（概算・参考用）です。"
     )
     hotel_links, transport_links = get_booking_links(
-        departure, destination, hotel_type, live_date, num_people)
+        departure, destination, live_date, num_people)
 
     st.markdown("**【ホテルを予約する】**")
     link_row(hotel_links)
@@ -298,6 +340,7 @@ if st.session_state.get("show_results"):
         "メンバー名を入力（カンマ区切り）",
         placeholder="例：あおい, さくら, はな",
         key="members_input",
+        help="一緒に遠征するメンバーの名前をカンマ区切りで入力してください",
     )
     members = [m.strip() for m in members_input.split(",") if m.strip()]
 
@@ -410,42 +453,45 @@ if st.session_state.get("show_results"):
     # 遠征記録の保存
     # ============================================
     st.divider()
-    st.subheader("この遠征を記録する")
-    memo = st.text_area(
-        "メモ（自由記入）",
-        placeholder="例：アリーナAブロックで神席だった！",
-        key="record_memo",
-    )
-
-    if st.button("記録する"):
-        record = {
-            "id": str(uuid.uuid4()),
-            "created_at": datetime.datetime.now().isoformat(
-                timespec="seconds"),
-            "live_date": live_date.isoformat(),
-            "departure": departure,
-            "destination": destination,
-            "venue": venue,
-            "transport": best["交通手段"],
-            "transport_cost": best["交通費（往復）"],
-            "hotel_cost": best["宿泊費"],
-            "nights": nights,
-            "num_people": num_people,
-            "ticket_price": ticket_price,
-            "goods_budget": goods_budget,
-            "food_budget": food_budget,
-            "hotel_type": hotel_type,
-            "total_cost": best["合計"],
-            "members": members,
-            "payments": st.session_state.payments,
-            "settlement": (
-                split_result["settlement"] if split_result else []
-            ),
-            "memo": memo,
-        }
-        save_record(record)
-        alert(
-            "記録を保存しました！"
-            "サイドバーの「mypage」ページから確認できます。",
-            kind="success",
+    with card():
+        st.subheader("💾 この遠征を記録する")
+        memo = st.text_area(
+            "メモ（自由記入）",
+            placeholder="例：アリーナAブロックで神席だった！",
+            key="record_memo",
+            help="当日の思い出や座席情報などを自由に書き残せます",
         )
+
+        if st.button("📝 記録する", type="primary"):
+            record = {
+                "id": str(uuid.uuid4()),
+                "created_at": datetime.datetime.now().isoformat(
+                    timespec="seconds"),
+                "live_date": live_date.isoformat(),
+                "departure": departure,
+                "destination": destination,
+                "venue": venue,
+                "transport": best["交通手段"],
+                "transport_cost": best["交通費（往復）"],
+                "hotel_cost": best["宿泊費"],
+                "nights": nights,
+                "num_people": num_people,
+                "ticket_price": ticket_price,
+                "goods_budget": goods_budget,
+                "food_budget": food_budget,
+                "hotel_type": DEFAULT_HOTEL_GRADE,
+                "total_cost": best["合計"],
+                "members": members,
+                "payments": st.session_state.payments,
+                "settlement": (
+                    split_result["settlement"] if split_result else []
+                ),
+                "memo": memo,
+            }
+            save_record(record)
+            alert(
+                "記録を保存しました！"
+                "サイドバーの「マイページ」から確認できます。",
+                kind="success",
+            )
+            st.balloons()

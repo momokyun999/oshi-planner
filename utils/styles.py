@@ -88,6 +88,11 @@ div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] s
     font-size: 16px;
     color: {COLOR_TEXT};
 }}
+/* 自動生成のページナビゲーションは非表示にし、
+   utils/sidebar.py のカスタムナビゲーションに置き換える */
+[data-testid="stSidebarNav"] {{
+    display: none;
+}}
 
 /* ------ st.metric ------ */
 [data-testid="stMetricValue"] {{
@@ -232,10 +237,15 @@ def link_row(links):
     )
 
 
-def transport_card(name, transport_cost, duration, hotel_cost, total, is_best):
+def transport_card(
+        name, transport_cost, duration, hotel_cost, total,
+        badge_text="", highlight=False):
     """交通手段の比較を表すカスタムHTMLカード"""
-    badge = '<span class="oshi-best-badge">最安</span>' if is_best else ""
-    css_class = "oshi-transport-card best" if is_best else "oshi-transport-card"
+    badge = (
+        f'<span class="oshi-best-badge">{badge_text}</span>'
+        if badge_text else ""
+    )
+    css_class = "oshi-transport-card best" if highlight else "oshi-transport-card"
     html = (
         f'<div class="{css_class}">'
         f'<div class="oshi-transport-header">'

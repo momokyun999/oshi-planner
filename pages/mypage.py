@@ -12,6 +12,7 @@ sys.path.append(
 
 from utils.calculator import calculate_split
 from utils.data import hotel_costs, transport_data
+from utils.sidebar import render_sidebar
 from utils.storage import delete_record, load_records, update_record
 from utils.styles import alert, card, inject_theme
 
@@ -22,6 +23,7 @@ st.set_page_config(
 )
 
 inject_theme()
+render_sidebar()
 
 st.title("マイページ")
 st.caption("これまでの遠征記録を振り返ることができます")
@@ -388,7 +390,7 @@ for record in sorted_records:
                 ).get(new_transport, {}).get("料金", 0)
                 hotel_rate = hotel_costs.get(
                     record["destination"], {}
-                ).get(record.get("hotel_type"), 0)
+                ).get(record.get("hotel_type", "ビジネス"), 0)
 
                 transport_cost = fare * 2 * new_num_people
                 hotel_cost = hotel_rate * new_nights * new_num_people
